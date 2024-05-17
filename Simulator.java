@@ -2,21 +2,18 @@ import java.util.*;
 
 public class Simulator {
 
-    LeitsteuerungssystemImpl leitsteuerungssystem;
-    private TimerCallback timerCallback;
+    Leitsteuerungssystem leitsteuerungssystem; // = new Leitsteuerungssystem();
+    private final List<UUID> runningMachines = new ArrayList<>();
+    private final List<UUID> waitingMachines = new ArrayList<>();
+    private final TimerCallback timerCallback = new TimerCallbackImpl();
 
-    public Simulator() {
-
+    public Simulator(Leitsteuerungssystem leitsteuerungssystem) {
+        this.leitsteuerungssystem = leitsteuerungssystem;
     }
 
     public void start(){
-        setup();
-
         //      time a machine needs to fill one item (3x) -> just an example
-        double machineFillingTime = 3.0;
-        System.out.println("Simulator started with optimal conditions and "
-                + machineFillingTime
-                + " seconds per machine to fill one item");
+        double timePerFillUp = 6.0;
         /**
          * Start with optimal condition:
          * - time difference = exact 1/3 * machineFillingTime
@@ -26,79 +23,53 @@ public class Simulator {
         leitsteuerungssystem.setEmptyPlaceSensor(true);
         leitsteuerungssystem.setFullPlaceSensor(false);
 
-        leitsteuerungssystem.startTimer(machineFillingTime, timerCallback);
-        leitsteuerungssystem.startTimer((2.0 / 3.0) * machineFillingTime, timerCallback);
-        leitsteuerungssystem.startTimer((1.0 / 3.0) * machineFillingTime, timerCallback);
+        runningMachines.add(leitsteuerungssystem.startTimer((1.0 / 3.0) * timePerFillUp, timerCallback));
+        runningMachines.add(leitsteuerungssystem.startTimer((2.0 / 3.0) * timePerFillUp, timerCallback));
+        runningMachines.add(leitsteuerungssystem.startTimer(timePerFillUp, timerCallback));
 
     }
 
-    public void setup(){
-        //        Fertigungsstation setup
-        Fertigungsstation fertigungsstation = new Fertigungsstation();
-        Machine machine_1 = new Machine();
-        Machine machine_2 = new Machine();
-        Machine machine_3 = new Machine();
-        fertigungsstation.addMachine(machine_1, machine_2, machine_3);
-
-        //        Leitsteuerungssystem setup
-        LeitsteuerungssystemImpl leitsteuerungssystem = new LeitsteuerungssystemImpl(fertigungsstation);
-        leitsteuerungssystem.addObserver(this);
-
-        //         Timer Callback setup
-        TimerCallback timerCallback = new TimerCallbackImpl();
-
-        this.leitsteuerungssystem = leitsteuerungssystem;
-        this.timerCallback = timerCallback;
-    }
-
-    public void onEmptyPlaceSensorChanged(boolean value){
-        System.out.println("Empty place sensor changed to: "+ value);
-        if(!value){
+    public void onEmptyPlaceSensorChanged(){
+        if (!leitsteuerungssystem.getEmptyPlaceSensor()){
             int randomTimeHumanNeeds = humansAreRandom();
             Timer timer = new Timer();
             timer.schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    System.out.print("Refiled item: ");
                     Simulator.this.leitsteuerungssystem.setEmptyPlaceSensor(true);
+                    System.out.println("Empty place(true): refilled");
                 }
             }, randomTimeHumanNeeds * 1000);
         }
 
     }
 
-    public void onFullPlaceSensorChanged(boolean value){
-        System.out.println("Full place sensor changed to: "+ value);
-        if(value){
+    public void onFullPlaceSensorChanged(){
+        if (leitsteuerungssystem.getFullPlaceSensor()){
+//            leitsteuerungssystem.killTimer(runningMachines.get(0));
+//            runningMachines.remove(0);
             int randomTimeHumanNeeds = humansAreRandom();
             Timer timer = new Timer();
             timer.schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    System.out.print("Picked up item: ");
                     Simulator.this.leitsteuerungssystem.setFullPlaceSensor(false);
-                    List<UUID> waitingQuery = leitsteuerungssystem.getWaitingQuery();
-                    for (UUID timerId: waitingQuery) {
-                        timerCallback.onTrigger(leitsteuerungssystem, timerId);
-                        break;
-                    }
-
+                    System.out.println("Full place(false): picked up");
                 }
             }, randomTimeHumanNeeds * 1000);
         }
 
+
     }
 
-    /**
-     * TODO explain this function
-     */
-    public int humansAreRandom() {
+    private int humansAreRandom(){
         Random rand = new Random();
-        int min = 1;
+        int min = 0;
         int max = 2;
         int randomTimeHumanNeeds = rand.nextInt(max - min) + min;
 
         return randomTimeHumanNeeds;
     }
+
 
 }
